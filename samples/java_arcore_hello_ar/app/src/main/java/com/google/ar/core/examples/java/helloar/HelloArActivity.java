@@ -29,9 +29,15 @@ import com.google.ar.core.examples.java.helloar.rendering.ObjectRenderer.BlendMo
 import com.google.ar.core.examples.java.helloar.rendering.PlaneAttachment;
 import com.google.ar.core.examples.java.helloar.rendering.PlaneRenderer;
 import com.google.ar.core.examples.java.helloar.rendering.PointCloudRenderer;
+import com.google.ar.core.examples.java.helloar.rendering.text.GLText;
 
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.drawable.Drawable;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
+import android.opengl.GLUtils;
 import android.os.Bundle;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
@@ -49,6 +55,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
+
 
 /**
  * This is a simple example that shows how to create an augmented reality (AR) application using
@@ -68,6 +75,7 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
     private Snackbar mLoadingMessageSnackbar = null;
 
     private ObjectRenderer mVirtualObject = new ObjectRenderer();
+
     private ObjectRenderer mVirtualObjectShadow = new ObjectRenderer();
     private PlaneRenderer mPlaneRenderer = new PlaneRenderer();
     private PointCloudRenderer mPointCloud = new PointCloudRenderer();
@@ -75,9 +83,13 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
     // Temporary matrix allocated here to reduce number of allocations for each frame.
     private final float[] mAnchorMatrix = new float[16];
 
+    private ArrayList<Float> mDistancia = new ArrayList<>();
+
     // Tap handling and UI.
     private ArrayBlockingQueue<MotionEvent> mQueuedSingleTaps = new ArrayBlockingQueue<>(16);
     private ArrayList<PlaneAttachment> mTouches = new ArrayList<>();
+
+    private GLText glText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,6 +101,7 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
 
         // Create default config, check is supported, create session from that config.
         mDefaultConfig = Config.createDefaultConfig();
+
         if (!mSession.isSupported(mDefaultConfig)) {
             Toast.makeText(this, "This device does not support AR", Toast.LENGTH_LONG).show();
             finish();
@@ -193,10 +206,12 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
             mVirtualObject.createOnGlThread(/*context=*/this, "andy.obj", "andy.png");
             mVirtualObject.setMaterialProperties(0.0f, 3.5f, 1.0f, 6.0f);
 
+
             mVirtualObjectShadow.createOnGlThread(/*context=*/this,
                 "andy_shadow.obj", "andy_shadow.png");
             mVirtualObjectShadow.setBlendMode(BlendMode.Shadow);
             mVirtualObjectShadow.setMaterialProperties(1.0f, 0.0f, 0.0f, 1.0f);
+
         } catch (IOException e) {
             Log.e(TAG, "Failed to read obj file");
         }
@@ -222,6 +237,7 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
 
         try {
+
             // Obtain the current frame from ARSession. When the configuration is set to
             // UpdateMode.BLOCKING (it is by default), this will throttle the rendering to the
             // camera framerate.
@@ -234,18 +250,57 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
                 for (HitResult hit : frame.hitTest(tap)) {
                     // Check if any plane was hit, and if it was hit inside the plane polygon.
                     if (hit instanceof PlaneHitResult && ((PlaneHitResult) hit).isHitInPolygon()) {
+
                         // Cap the number of objects created. This avoids overloading both the
                         // rendering system and ARCore.
                         if (mTouches.size() >= 16) {
                             mSession.removeAnchors(Arrays.asList(mTouches.get(0).getAnchor()));
                             mTouches.remove(0);
                         }
+
+
+
+
                         // Adding an Anchor tells ARCore that it should track this position in
                         // space. This anchor will be used in PlaneAttachment to place the 3d model
                         // in the correct position relative both to the world and to the plane.
                         mTouches.add(new PlaneAttachment(
                             ((PlaneHitResult) hit).getPlane(),
                             mSession.addAnchor(hit.getHitPose())));
+
+                        Log.d(TAG," Plano "+  ((PlaneHitResult) hit).getPlane().toString());
+                        Log.d(TAG," Pose Distancia"+  hit.getHitPose().toString());
+                        Log.d(TAG," Ancho "+ mSession.addAnchor(hit.getHitPose()).toString());
+                        Log.d(TAG," Matrix"+ new PlaneAttachment(
+                                ((PlaneHitResult) hit).getPlane(),
+                                mSession.addAnchor(hit.getHitPose())).toString() );
+
+
+                        if (mDistancia.size() >= 6) {
+                            mDistancia.remove(0);
+                            mDistancia.remove(0);
+                            mDistancia.remove(0);
+                        }
+
+                        mDistancia.add(hit.getHitPose().tx());
+                        mDistancia.add(hit.getHitPose().ty());
+                        mDistancia.add(hit.getHitPose().tz());
+
+                        if(mDistancia.size() == 6){
+
+                            double distancia = CalcDistance.distance(mDistancia.get(0),mDistancia.get(1),mDistancia.get(2),mDistancia.get(3),mDistancia.get(4),mDistancia.get(5));
+                            Log.d(TAG,"Distancia "+distancia);
+
+
+                            mLoadingMessageSnackbar = Snackbar.make(
+                                    HelloArActivity.this.findViewById(android.R.id.content),
+                                    "Distancia "+distancia, Snackbar.LENGTH_INDEFINITE);
+                            mLoadingMessageSnackbar.getView().setBackgroundColor(0xbf323232);
+                            mLoadingMessageSnackbar.show();
+
+
+                        }
+
 
                         // Hits are sorted by depth. Consider only closest hit on a plane.
                         break;
@@ -299,6 +354,8 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
                 // Get the current combined pose of an Anchor and Plane in world space. The Anchor
                 // and Plane poses are updated during calls to session.update() as ARCore refines
                 // its estimate of the world.
+
+
                 planeAttachment.getPose().toMatrix(mAnchorMatrix, 0);
 
                 // Update and draw the model and its shadow.
@@ -306,6 +363,10 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
                 mVirtualObjectShadow.updateModelMatrix(mAnchorMatrix, scaleFactor);
                 mVirtualObject.draw(viewmtx, projmtx, lightIntensity);
                 mVirtualObjectShadow.draw(viewmtx, projmtx, lightIntensity);
+
+
+
+
             }
 
         } catch (Throwable t) {
@@ -313,6 +374,7 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
             Log.e(TAG, "Exception on the OpenGL thread", t);
         }
     }
+
 
     private void showLoadingMessage() {
         runOnUiThread(new Runnable() {
@@ -327,13 +389,16 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
         });
     }
 
+
     private void hideLoadingMessage() {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                mLoadingMessageSnackbar.dismiss();
-                mLoadingMessageSnackbar = null;
+
             }
         });
     }
+
+
+
 }
