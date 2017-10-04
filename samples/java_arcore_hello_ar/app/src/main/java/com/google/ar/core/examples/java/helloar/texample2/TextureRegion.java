@@ -1,4 +1,5 @@
-package com.google.ar.core.examples.java.helloar.rendering.text;
+package com.google.ar.core.examples.java.helloar.texample2;
+
 
 class TextureRegion {
 

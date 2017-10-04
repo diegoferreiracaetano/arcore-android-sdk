@@ -16,9 +16,21 @@
 
 package com.google.ar.core.examples.java.helloar;
 
+import android.opengl.GLES20;
+import android.opengl.GLSurfaceView;
+import android.opengl.Matrix;
+import android.os.Bundle;
+import android.support.design.widget.Snackbar;
+import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.Toast;
+
 import com.google.ar.core.Config;
 import com.google.ar.core.Frame;
-import com.google.ar.core.Frame.TrackingState;
 import com.google.ar.core.HitResult;
 import com.google.ar.core.Plane;
 import com.google.ar.core.PlaneHitResult;
@@ -29,24 +41,7 @@ import com.google.ar.core.examples.java.helloar.rendering.ObjectRenderer.BlendMo
 import com.google.ar.core.examples.java.helloar.rendering.PlaneAttachment;
 import com.google.ar.core.examples.java.helloar.rendering.PlaneRenderer;
 import com.google.ar.core.examples.java.helloar.rendering.PointCloudRenderer;
-import com.google.ar.core.examples.java.helloar.rendering.text.GLText;
-
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.drawable.Drawable;
-import android.opengl.GLES20;
-import android.opengl.GLSurfaceView;
-import android.opengl.GLUtils;
-import android.os.Bundle;
-import android.support.design.widget.Snackbar;
-import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
-import android.view.GestureDetector;
-import android.view.MotionEvent;
-import android.view.View;
-import android.view.WindowManager;
-import android.widget.Toast;
+import com.google.ar.core.examples.java.helloar.texample2.GLText;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -90,6 +85,14 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
     private ArrayList<PlaneAttachment> mTouches = new ArrayList<>();
 
     private GLText glText;
+
+    private int width = 100;                           // Updated to the Current Width + Height in onSurfaceChanged()
+    private int height = 100;
+    private float[] mProjMatrix = new float[16];
+    private float[] mVMatrix = new float[16];
+    private float[] mVPMatrix = new float[16];
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -221,6 +224,15 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
             Log.e(TAG, "Failed to read plane texture");
         }
         mPointCloud.createOnGlThread(/*context=*/this);
+
+
+        // Create the GLText
+        glText = new GLText(getAssets());
+
+        // Load the font from file (set size + padding), creates the texture
+        // NOTE: after a successful call to this the font is ready for rendering!
+        glText.load( "Roboto-Regular.ttf", 14, 2, 2 );  // Create Font (Height: 14 Pixels / X+Y Padding 2 Pixels)
+
     }
 
     @Override
@@ -236,7 +248,7 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
         // Clear screen to notify driver it should not load any pixels from previous frame.
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
 
-        try {
+       try {
 
             // Obtain the current frame from ARSession. When the configuration is set to
             // UpdateMode.BLOCKING (it is by default), this will throttle the rendering to the
@@ -246,7 +258,7 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
             // Handle taps. Handling only one tap per frame, as taps are usually low frequency
             // compared to frame rate.
             MotionEvent tap = mQueuedSingleTaps.poll();
-            if (tap != null && frame.getTrackingState() == TrackingState.TRACKING) {
+            if (tap != null && frame.getTrackingState() == Frame.TrackingState.TRACKING) {
                 for (HitResult hit : frame.hitTest(tap)) {
                     // Check if any plane was hit, and if it was hit inside the plane polygon.
                     if (hit instanceof PlaneHitResult && ((PlaneHitResult) hit).isHitInPolygon()) {
@@ -312,7 +324,7 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
             mBackgroundRenderer.draw(frame);
 
             // If not tracking, don't draw 3d objects.
-            if (frame.getTrackingState() == TrackingState.NOT_TRACKING) {
+            if (frame.getTrackingState() == Frame.TrackingState.NOT_TRACKING) {
                 return;
             }
 
@@ -373,6 +385,7 @@ public class HelloArActivity extends AppCompatActivity implements GLSurfaceView.
             // Avoid crashing the application due to unhandled exceptions.
             Log.e(TAG, "Exception on the OpenGL thread", t);
         }
+
     }
 
 
